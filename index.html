@@ -149,11 +149,21 @@
       <input class="grow" type="search" id="search" placeholder="現場名・住所・メモで検索">
       <select id="filterDriver" style="width:auto;flex:0 0 auto"><option value="">全担当者</option></select>
     </div>
+    <div class="toolbar" style="margin-bottom:10px">
+      <label style="margin:0;font-size:13px;color:var(--sub);font-weight:600">並べ替え</label>
+      <select id="sortOrder" class="grow" style="flex:1;min-width:140px">
+        <option value="date_desc">日付（新しい順）</option>
+        <option value="date_asc">日付（古い順）</option>
+        <option value="site">現場名順</option>
+        <option value="driver">担当者順</option>
+      </select>
+    </div>
     <div class="toolbar">
       <button class="btn btn-sm btn-ghost" id="exportCsv">CSV書き出し</button>
       <button class="btn btn-sm btn-ghost" id="importBtn">CSV取込</button>
       <input type="file" id="importFile" accept=".csv" class="hidden">
       <button class="btn btn-sm btn-ghost" id="printBtn">印刷/PDF</button>
+      <button class="btn btn-sm btn-danger" id="bulkDelete">🗑 表示中を一括削除</button>
     </div>
     <div class="count" id="count"></div>
     <div id="list"></div>
@@ -331,6 +341,26 @@ document.getElementById('cf_ok').onclick=()=>{
 };
 document.getElementById('cf_cancel').onclick=()=>dlg.close();
 
+// 複数まとめて削除（共有中はマーク→同期、未共有は即削除）
+function deleteIds(ids){
+  const set=new Set(ids);
+  if(API_URL){
+    records=records.map(r=> set.has(r.id) ? {...r,_pending:'delete'} : r);
+    save(); render(); syncNow(true);
+  } else {
+    records=records.filter(r=>!set.has(r.id)); save(); render();
+  }
+}
+
+// 「表示中を一括削除」ボタン
+document.getElementById('bulkDelete').onclick=()=>{
+  const list=getFilteredList();
+  if(!list.length){ alert('削除できる記録がありません。'); return; }
+  const shareWarn = API_URL ? '\n※共有中のため、全員のデータからも削除されます。' : '';
+  if(!confirm(`いま表示されている ${list.length} 件をすべて削除します。\nこの操作は取り消せません。${shareWarn}\n\n削除しますか？`)) return;
+  deleteIds(list.map(r=>r.id));
+};
+
 /* ===== 共有（Google スプレッドシート）同期 ===== */
 const SYNC_FIELDS=['id','date','driver','site','arrive','leave','addrText','addr','memo'];
 function stripForServer(r){ const o={}; SYNC_FIELDS.forEach(k=>o[k]=r[k]||''); return o; }
@@ -384,9 +414,10 @@ async function syncNow(silent){
 }
 document.getElementById('syncBtn').onclick=()=>syncNow(false);
 
-// フィルタ・検索
+// フィルタ・検索・並べ替え
 document.getElementById('search').addEventListener('input',render);
 document.getElementById('filterDriver').addEventListener('change',render);
+document.getElementById('sortOrder').addEventListener('change',render);
 
 function allDriverNames(){
   // 登録済み＋過去記録に含まれる名前をまとめて表示（重複なし）
@@ -435,13 +466,25 @@ function renderDriverManage(){
   </div>`).join('');
 }
 
-function render(){
-  refreshDrivers();
+// 検索・絞り込み・並べ替えを適用した「表示中の一覧」を返す
+function getFilteredList(){
   const q=document.getElementById('search').value.trim().toLowerCase();
   const fd=document.getElementById('filterDriver').value;
-  let list=records.filter(r=>r._pending!=='delete').slice().sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (a.arrive||'').localeCompare(b.arrive||''));
+  const order=(document.getElementById('sortOrder')||{}).value||'date_desc';
+  let list=records.filter(r=>r._pending!=='delete').slice();
   if(fd) list=list.filter(r=>r.driver===fd);
   if(q) list=list.filter(r=>[r.site,r.addrText,r.addr,r.memo,r.driver].some(v=>(v||'').toLowerCase().includes(q)));
+  const byDate=(a,b)=>(a.date||'').localeCompare(b.date||'')||(a.arrive||'').localeCompare(b.arrive||'');
+  if(order==='date_asc') list.sort(byDate);
+  else if(order==='site') list.sort((a,b)=>(a.site||'').localeCompare(b.site||'','ja'));
+  else if(order==='driver') list.sort((a,b)=>(a.driver||'').localeCompare(b.driver||'','ja')||byDate(b,a));
+  else list.sort((a,b)=>byDate(b,a)); // date_desc（新しい順）
+  return list;
+}
+
+function render(){
+  refreshDrivers();
+  let list=getFilteredList();
 
   document.getElementById('count').textContent=`${list.length} 件${records.length!==list.length?` / 全${records.length}件`:''}`;
   const el=document.getElementById('list');
