@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>配送記録 - 現場記録アプリ</title>
+<style>
+  :root{
+    --bg:#f4f6f8; --card:#fff; --line:#e2e6ea; --ink:#1f2933; --sub:#6b7785;
+    --accent:#00B16B; --accent-d:#009159; --danger:#dc2626; --ok:#059669;
+    --chip:#e3f7ee;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI","Meiryo",sans-serif;
+    background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5;}
+  header{background:var(--accent);color:#fff;padding:14px 16px;position:sticky;top:0;z-index:10;
+    box-shadow:0 2px 8px rgba(0,0,0,.12);}
+  header h1{margin:0;font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px;}
+  .wrap{max-width:760px;margin:0 auto;padding:16px;padding-bottom:84px;}
+  .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:20;display:flex;background:#fff;
+    border-top:1px solid var(--line);box-shadow:0 -2px 10px rgba(0,0,0,.06);
+    padding-bottom:env(safe-area-inset-bottom);}
+  .tab{flex:1;appearance:none;border:none;background:none;padding:10px 0 12px;cursor:pointer;
+    font-family:inherit;font-size:12px;font-weight:700;color:var(--sub);display:flex;flex-direction:column;
+    align-items:center;gap:3px;border-top:3px solid transparent;}
+  .tab .ic{font-size:20px;line-height:1;}
+  .tab.active{color:var(--accent);border-top-color:var(--accent);background:#f0fbf6;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px;
+    box-shadow:0 1px 3px rgba(0,0,0,.04);}
+  .card h2{margin:0 0 12px;font-size:15px;color:var(--sub);font-weight:700;letter-spacing:.02em;}
+  label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px;font-weight:600;}
+  input,select,textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;
+    font-size:16px;font-family:inherit;background:#fff;color:var(--ink);}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,177,107,.15);}
+  textarea{resize:vertical;min-height:64px;}
+  .row{display:flex;gap:10px;}
+  .row>div{flex:1;}
+  .btn{appearance:none;border:none;border-radius:10px;padding:12px 16px;font-size:15px;font-weight:700;
+    cursor:pointer;font-family:inherit;transition:.15s;}
+  .btn-primary{background:var(--accent);color:#fff;width:100%;}
+  .btn-primary:active{background:var(--accent-d);}
+  .btn-sm{padding:7px 10px;font-size:13px;}
+  .btn-ghost{background:#f1f5f9;color:var(--ink);}
+  .btn-danger{background:#fee2e2;color:var(--danger);}
+  .btn-ok{background:#d1fae5;color:var(--ok);}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .toolbar .grow{flex:1;min-width:120px;}
+  .count{font-size:13px;color:var(--sub);margin:4px 2px 12px;}
+  .rec{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;background:#fff;}
+  .rec .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .rec .site{font-size:16px;font-weight:700;}
+  .rec .date{font-size:13px;color:var(--sub);white-space:nowrap;}
+  .chip{display:inline-block;background:var(--chip);color:var(--accent-d);font-size:12px;font-weight:700;
+    padding:2px 9px;border-radius:999px;margin-top:6px;}
+  .rec .meta{font-size:14px;color:#374151;margin-top:8px;}
+  .rec .meta a{color:var(--accent);text-decoration:none;font-weight:600;}
+  .rec .memo{font-size:14px;color:#374151;margin-top:8px;white-space:pre-wrap;}
+  .rec img{max-width:100%;border-radius:8px;margin-top:8px;display:block;}
+  .rec .actions{display:flex;gap:8px;margin-top:10px;justify-content:flex-end;}
+  .empty{text-align:center;color:var(--sub);padding:30px 10px;font-size:14px;}
+  .hidden{display:none;}
+  .hint{font-size:12px;color:var(--sub);margin-top:6px;}
+  .filedrop{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  dialog{border:none;border-radius:14px;padding:0;max-width:92vw;width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3);}
+  dialog::backdrop{background:rgba(0,0,0,.4);}
+  .modal-body{padding:18px;}
+  .modal-body h3{margin:0 0 6px;font-size:16px;}
+  .modal-body p{margin:0 0 14px;font-size:14px;color:var(--sub);}
+  .footer-note{font-size:12px;color:var(--sub);text-align:center;padding:8px 0 24px;}
+  .thumbtoggle{font-size:13px;color:var(--accent);cursor:pointer;margin-top:6px;display:inline-block;font-weight:600;}
+  .syncbar{font-size:13px;font-weight:600;padding:8px 11px;border-radius:9px;margin-bottom:10px;}
+  .syncbar.local{background:#f1f5f9;color:var(--sub);}
+  .syncbar.syncing{background:#fef9e7;color:#92700a;}
+  .syncbar.ok{background:#d1fae5;color:#047857;}
+  .syncbar.error{background:#fee2e2;color:var(--danger);}
+</style>
+</head>
+<body>
+<header><h1>🚚 配送記録</h1></header>
+<div class="wrap">
+
+  <!-- 追加ビュー -->
+  <section id="view-add">
+  <!-- 入力フォーム -->
+  <div class="card">
+    <h2 id="formTitle">記録を追加</h2>
+    <div class="row">
+      <div>
+        <label>日付</label>
+        <input type="date" id="f_date">
+      </div>
+      <div>
+        <label>担当者</label>
+        <div class="toolbar" style="gap:6px">
+          <select id="f_driver" class="grow"><option value="">選択してください</option></select>
+          <button type="button" class="btn btn-sm btn-ghost" id="manageDrivers" title="担当者を登録・編集">登録</button>
+        </div>
+      </div>
+    </div>
+    <label>現場名 <span style="color:var(--danger)">*</span></label>
+    <input type="text" id="f_site" placeholder="例：〇〇マンション A棟">
+    <div class="row">
+      <div>
+        <label>到着</label>
+        <input type="time" id="f_arrive">
+      </div>
+      <div>
+        <label>出発</label>
+        <input type="time" id="f_leave">
+      </div>
+    </div>
+    <label>住所（手入力）</label>
+    <input type="text" id="f_addrtext" placeholder="例：東京都〇〇区1-2-3">
+    <label>Google Mapリンク（URLを貼り付け）</label>
+    <input type="url" id="f_addr" placeholder="GoogleマップのURLを貼り付け（例 https://maps.app.goo.gl/...）">
+    <label>メモ</label>
+    <textarea id="f_memo" placeholder="作業内容・引継ぎなど"></textarea>
+    <label>写真</label>
+    <div class="filedrop">
+      <input type="file" id="f_photo" accept="image/*" capture="environment" style="border:none;padding:6px 0;">
+      <button type="button" class="btn btn-sm btn-ghost" id="clearPhoto">写真を消す</button>
+    </div>
+    <div class="hint">写真は自動で縮小して保存されます（端末内に保存）。</div>
+    <div style="margin-top:16px" class="toolbar">
+      <button class="btn btn-primary grow" id="saveBtn">保存する</button>
+      <button class="btn btn-ghost hidden" id="cancelEdit">キャンセル</button>
+    </div>
+  </div>
+  </section>
+
+  <!-- 一覧ビュー -->
+  <section id="view-list" class="hidden">
+  <!-- 検索・エクスポート -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h2 style="margin:0">記録一覧</h2>
+      <button class="btn btn-sm btn-ghost" id="syncBtn" style="width:auto">🔄 同期</button>
+    </div>
+    <div id="syncStatus" class="syncbar hidden"></div>
+    <div class="toolbar" style="margin-bottom:10px">
+      <input class="grow" type="search" id="search" placeholder="現場名・住所・メモで検索">
+      <select id="filterDriver" style="width:auto;flex:0 0 auto"><option value="">全担当者</option></select>
+    </div>
+    <div class="toolbar">
+      <button class="btn btn-sm btn-ghost" id="exportCsv">CSV書き出し</button>
+      <button class="btn btn-sm btn-ghost" id="importBtn">CSV取込</button>
+      <input type="file" id="importFile" accept=".csv" class="hidden">
+      <button class="btn btn-sm btn-ghost" id="printBtn">印刷/PDF</button>
+    </div>
+    <div class="count" id="count"></div>
+    <div id="list"></div>
+  </div>
+  </section>
+
+  <div class="footer-note">共有設定をすると全員で同じ記録を見られます（写真は各端末に保存）。未設定の場合はこの端末だけに保存されます。</div>
+</div>
+
+<!-- 下部タブ -->
+<nav class="tabbar">
+  <button class="tab active" id="tab-add" data-view="add"><span class="ic">✏️</span>追加</button>
+  <button class="tab" id="tab-list" data-view="list"><span class="ic">📋</span>一覧・検索</button>
+</nav>
+
+<!-- 担当者管理モーダル -->
+<dialog id="driverDlg">
+  <div class="modal-body">
+    <h3>担当者の登録</h3>
+    <p>名前を登録しておくと、記録時に選ぶだけで入力できます。</p>
+    <div class="toolbar" style="gap:6px">
+      <input type="text" id="newDriverName" class="grow" placeholder="名前を入力（例：山田）" autocomplete="off">
+      <button class="btn btn-sm btn-primary" id="addDriverBtn" style="width:auto">追加</button>
+    </div>
+    <div id="driverManageList" style="margin-top:12px"></div>
+    <div class="toolbar" style="margin-top:14px">
+      <button class="btn btn-ghost grow" id="driverDlgClose">閉じる</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- 確認モーダル -->
+<dialog id="confirmDlg">
+  <div class="modal-body">
+    <h3 id="cf_title">確認</h3>
+    <p id="cf_msg"></p>
+    <div class="toolbar">
+      <button class="btn btn-danger grow" id="cf_ok">削除する</button>
+      <button class="btn btn-ghost" id="cf_cancel">やめる</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+/* ===== 共有設定 =====================================================
+   下の API_URL に、Apps Script で発行したウェブアプリのURLを貼り付けると
+   全員でデータを共有できます（手順書を参照）。
+   空のままなら、この端末だけに保存する「共有なし」モードで動きます。
+   API_TOKEN は任意の合言葉。Apps Script側と同じ文字にしてください。
+==================================================================== */
+const API_URL = 'https://script.google.com/macros/s/AKfycbzGvrTDSqZ3GC5_-3Dq0ET3BmAyA03vZauRgeR1jpEo7Tcys0KOJxVvbLhtRcRpqYJB/exec';      // 例: 'https://script.google.com/macros/s/AKfycb.../exec'
+const API_TOKEN = 'haiso2026';    // 例: 'haiso2026'（Apps Script側と一致させる）
+const AUTO_SYNC_SEC = 30; // 自動更新の間隔（秒）。0で自動更新オフ
+
+const KEY = 'haiso_records_v1';
+const DKEY = 'haiso_drivers_v1';
+let records = load();
+let drivers = loadDrivers();
+let editId = null;
+
+// タブ切替
+function switchView(v){
+  document.getElementById('view-add').classList.toggle('hidden', v!=='add');
+  document.getElementById('view-list').classList.toggle('hidden', v!=='list');
+  document.getElementById('tab-add').classList.toggle('active', v==='add');
+  document.getElementById('tab-list').classList.toggle('active', v==='list');
+  window.scrollTo({top:0});
+}
+document.getElementById('tab-add').onclick=()=>switchView('add');
+document.getElementById('tab-list').onclick=()=>switchView('list');
+
+function load(){ try{return JSON.parse(localStorage.getItem(KEY))||[];}catch(e){return [];} }
+function save(){ localStorage.setItem(KEY, JSON.stringify(records)); }
+function loadDrivers(){
+  let d=[]; try{ d=JSON.parse(localStorage.getItem(DKEY))||[]; }catch(e){ d=[]; }
+  return d;
+}
+function saveDrivers(){ localStorage.setItem(DKEY, JSON.stringify(drivers)); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function esc(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// 初期日付＝今日
+document.getElementById('f_date').value = new Date().toISOString().slice(0,10);
+
+// 写真縮小
+let photoData = '';
+document.getElementById('f_photo').addEventListener('change', e=>{
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const max=1000; let {width:w,height:h}=img;
+      if(w>max||h>max){ const r=Math.min(max/w,max/h); w=Math.round(w*r); h=Math.round(h*r);}
+      const c=document.createElement('canvas'); c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      photoData=c.toDataURL('image/jpeg',0.7);
+    };
+    img.src=ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+document.getElementById('clearPhoto').onclick=()=>{ photoData=''; document.getElementById('f_photo').value=''; };
+
+// 保存
+document.getElementById('saveBtn').onclick=()=>{
+  const site=document.getElementById('f_site').value.trim();
+  if(!site){ alert('現場名を入力してください'); return; }
+  const rec={
+    id: editId||uid(),
+    date: document.getElementById('f_date').value,
+    driver: document.getElementById('f_driver').value.trim(),
+    site,
+    arrive: document.getElementById('f_arrive').value,
+    leave: document.getElementById('f_leave').value,
+    addrText: document.getElementById('f_addrtext').value.trim(),
+    addr: document.getElementById('f_addr').value.trim(),
+    memo: document.getElementById('f_memo').value.trim(),
+    photo: photoData
+  };
+  if(API_URL){ rec._pending = editId ? 'update' : 'add'; }
+  if(editId){ records = records.map(r=>r.id===editId? rec : r); }
+  else { records.unshift(rec); }
+  save(); resetForm(); render(); switchView('list');
+  if(API_URL) syncNow(true);
+};
+
+document.getElementById('cancelEdit').onclick=resetForm;
+
+function resetForm(){
+  editId=null; photoData='';
+  document.getElementById('formTitle').textContent='記録を追加';
+  document.getElementById('saveBtn').textContent='保存する';
+  document.getElementById('cancelEdit').classList.add('hidden');
+  ['f_site','f_driver','f_addrtext','f_addr','f_memo','f_arrive','f_leave','f_photo'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f_date').value=new Date().toISOString().slice(0,10);
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function editRec(id){
+  const r=records.find(x=>x.id===id); if(!r) return;
+  editId=id; photoData=r.photo||'';
+  document.getElementById('f_date').value=r.date||'';
+  document.getElementById('f_driver').value=r.driver||'';
+  document.getElementById('f_site').value=r.site||'';
+  document.getElementById('f_arrive').value=r.arrive||'';
+  document.getElementById('f_leave').value=r.leave||'';
+  document.getElementById('f_addrtext').value=r.addrText||'';
+  document.getElementById('f_addr').value=r.addr||'';
+  document.getElementById('f_memo').value=r.memo||'';
+  document.getElementById('formTitle').textContent='記録を編集';
+  document.getElementById('saveBtn').textContent='更新する';
+  document.getElementById('cancelEdit').classList.remove('hidden');
+  switchView('add');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// 削除（確認モーダル）
+const dlg=document.getElementById('confirmDlg');
+let pendingDelete=null;
+function askDelete(id){
+  const r=records.find(x=>x.id===id);
+  pendingDelete=id;
+  document.getElementById('cf_msg').textContent=`「${r.site}」(${r.date}) を削除します。よろしいですか？`;
+  dlg.showModal();
+}
+document.getElementById('cf_ok').onclick=()=>{
+  if(API_URL){
+    // 共有モード：削除をマークして同期（他端末にも反映）
+    records = records.map(r=> r.id===pendingDelete ? {...r, _pending:'delete'} : r);
+    save(); render(); dlg.close(); syncNow(true);
+  } else {
+    records=records.filter(r=>r.id!==pendingDelete); save(); render(); dlg.close();
+  }
+};
+document.getElementById('cf_cancel').onclick=()=>dlg.close();
+
+/* ===== 共有（Google スプレッドシート）同期 ===== */
+const SYNC_FIELDS=['id','date','driver','site','arrive','leave','addrText','addr','memo'];
+function stripForServer(r){ const o={}; SYNC_FIELDS.forEach(k=>o[k]=r[k]||''); return o; }
+let syncing=false;
+
+function setSyncUI(state,msg){
+  const el=document.getElementById('syncStatus');
+  if(!API_URL){ el.className='syncbar local'; el.classList.remove('hidden');
+    el.textContent='🔒 共有なし（この端末だけに保存）'; return; }
+  el.classList.remove('hidden');
+  el.className='syncbar '+state;
+  const map={syncing:'⏳ 同期中…',ok:'✅ 同期済み（全員で共有）',error:'⚠️ 同期に失敗：'+(msg||'ネット接続を確認')};
+  el.textContent=map[state]||'';
+}
+async function apiGet(){
+  const url=API_URL+(API_URL.includes('?')?'&':'?')+'action=list&token='+encodeURIComponent(API_TOKEN);
+  const res=await fetch(url,{method:'GET'});
+  const data=await res.json();
+  if(!data||data.ok!==true) throw new Error((data&&data.error)||'取得エラー');
+  return data.records||[];
+}
+async function apiPost(payload){
+  // Content-Typeを付けない=単純リクエストにしてCORSプリフライトを回避
+  const res=await fetch(API_URL,{method:'POST',body:JSON.stringify({...payload,token:API_TOKEN})});
+  const data=await res.json();
+  if(!data||data.ok!==true) throw new Error((data&&data.error)||'サーバーエラー');
+  return data;
+}
+async function syncNow(silent){
+  if(!API_URL){ setSyncUI('local'); return; }
+  if(syncing) return;
+  syncing=true; setSyncUI('syncing');
+  try{
+    // 1) 未送信の変更を反映
+    const pend=records.filter(r=>r._pending);
+    for(const r of pend){
+      if(r._pending==='delete') await apiPost({action:'delete',id:r.id});
+      else await apiPost({action:'save',record:stripForServer(r)});
+    }
+    // 2) サーバーから全件取得（サーバーが正）
+    const server=await apiGet();
+    // 3) 端末内の写真を維持（写真はサーバーに保存しない）
+    const photoMap={}; records.forEach(r=>{ if(r.photo) photoMap[r.id]=r.photo; });
+    records=server.map(r=>({...r,photo:photoMap[r.id]||''}));
+    save(); render();
+    setSyncUI('ok');
+  }catch(e){
+    setSyncUI('error',e.message);
+    if(!silent) alert('同期に失敗しました。\n・ネット接続\n・API_URL / API_TOKEN の設定\nを確認してください。\n\n'+e.message);
+  }finally{ syncing=false; }
+}
+document.getElementById('syncBtn').onclick=()=>syncNow(false);
+
+// フィルタ・検索
+document.getElementById('search').addEventListener('input',render);
+document.getElementById('filterDriver').addEventListener('change',render);
+
+function allDriverNames(){
+  // 登録済み＋過去記録に含まれる名前をまとめて表示（重複なし）
+  return [...new Set([...drivers, ...records.map(r=>r.driver).filter(Boolean)])].sort();
+}
+function refreshDrivers(){
+  const names=allDriverNames();
+  // 入力フォームの担当者セレクト
+  const fsel=document.getElementById('f_driver');
+  const fcur=fsel.value;
+  fsel.innerHTML='<option value="">選択してください</option>'+names.map(d=>`<option>${esc(d)}</option>`).join('');
+  fsel.value=fcur;
+  // 一覧の絞り込みセレクト
+  const sel=document.getElementById('filterDriver');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">全担当者</option>'+names.map(d=>`<option>${esc(d)}</option>`).join('');
+  sel.value=cur;
+}
+
+// 担当者の登録・削除
+const driverDlg=document.getElementById('driverDlg');
+document.getElementById('manageDrivers').onclick=()=>{ renderDriverManage(); driverDlg.showModal(); };
+document.getElementById('driverDlgClose').onclick=()=>driverDlg.close();
+document.getElementById('addDriverBtn').onclick=addDriver;
+document.getElementById('newDriverName').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); addDriver(); } });
+
+function addDriver(){
+  const inp=document.getElementById('newDriverName');
+  const name=inp.value.trim();
+  if(!name) return;
+  if(drivers.includes(name)){ alert('すでに登録されています'); return; }
+  drivers.push(name); saveDrivers(); inp.value='';
+  refreshDrivers(); renderDriverManage();
+  document.getElementById('f_driver').value=name; // 登録した人を選択状態に
+}
+function deleteDriver(name){
+  drivers=drivers.filter(d=>d!==name); saveDrivers();
+  refreshDrivers(); renderDriverManage();
+}
+function renderDriverManage(){
+  const box=document.getElementById('driverManageList');
+  if(!drivers.length){ box.innerHTML='<div class="empty" style="padding:14px">まだ登録がありません。上の欄から追加してください。</div>'; return; }
+  box.innerHTML=drivers.slice().sort().map(d=>`<div class="rec" style="display:flex;justify-content:space-between;align-items:center;padding:9px 12px;margin-bottom:8px">
+    <span style="font-weight:600">${esc(d)}</span>
+    <button class="btn btn-sm btn-danger" onclick="deleteDriver('${esc(d).replace(/'/g,"\\'")}')">削除</button>
+  </div>`).join('');
+}
+
+function render(){
+  refreshDrivers();
+  const q=document.getElementById('search').value.trim().toLowerCase();
+  const fd=document.getElementById('filterDriver').value;
+  let list=records.filter(r=>r._pending!=='delete').slice().sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (a.arrive||'').localeCompare(b.arrive||''));
+  if(fd) list=list.filter(r=>r.driver===fd);
+  if(q) list=list.filter(r=>[r.site,r.addrText,r.addr,r.memo,r.driver].some(v=>(v||'').toLowerCase().includes(q)));
+
+  document.getElementById('count').textContent=`${list.length} 件${records.length!==list.length?` / 全${records.length}件`:''}`;
+  const el=document.getElementById('list');
+  if(!list.length){ el.innerHTML='<div class="empty">記録がありません。上のフォームから追加してください。</div>'; return; }
+
+  el.innerHTML=list.map(r=>{
+    const time=[r.arrive,r.leave].filter(Boolean).join(' 〜 ');
+    let map='';
+    const parts=[];
+    if(r.addrText){ parts.push(`📍 ${esc(r.addrText)}`); }
+    if(r.addr){
+      const url = /^https?:\/\//i.test(r.addr) ? r.addr : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.addr)}`;
+      parts.push(`<a href="${esc(url)}" target="_blank" rel="noopener">🗺️ 地図を開く</a>`);
+    } else if(r.addrText){
+      parts.push(`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.addrText)}" target="_blank" rel="noopener">🗺️ 地図を開く</a>`);
+    }
+    if(parts.length){ map=`<div class="meta">${parts.join('　')}</div>`; }
+    const photo=r.photo?`<span class="thumbtoggle" onclick="this.nextElementSibling.classList.toggle('hidden')">写真を表示/隠す</span><img class="hidden" src="${r.photo}">`:'';
+    return `<div class="rec">
+      <div class="top">
+        <div><div class="site">${esc(r.site)}</div>${r.driver?`<span class="chip">${esc(r.driver)}</span>`:''}</div>
+        <div class="date">${esc(r.date)||''}${time?`<br>${esc(time)}`:''}</div>
+      </div>
+      ${map}
+      ${r.memo?`<div class="memo">${esc(r.memo)}</div>`:''}
+      ${photo}
+      <div class="actions">
+        <button class="btn btn-sm btn-ghost" onclick="editRec('${r.id}')">編集</button>
+        <button class="btn btn-sm btn-danger" onclick="askDelete('${r.id}')">削除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// CSV書き出し
+function csvCell(v){ v=(v==null?'':String(v)); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+document.getElementById('exportCsv').onclick=()=>{
+  const cols=['date','driver','site','arrive','leave','addrText','addr','memo'];
+  const head=['日付','担当者','現場名','到着','出発','住所','地図リンク','メモ'];
+  const rows=records.filter(r=>r._pending!=='delete').map(r=>cols.map(c=>csvCell(r[c])).join(','));
+  const csv='﻿'+[head.join(','),...rows].join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='配送記録_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+};
+
+// CSV取込（写真は含まれません）
+document.getElementById('importBtn').onclick=()=>document.getElementById('importFile').click();
+document.getElementById('importFile').addEventListener('change',e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const rows=parseCSV(ev.target.result);
+      if(!rows.length){ alert('データが見つかりません'); return; }
+      const header=rows[0].map(h=>h.replace(/^﻿/,'').trim());
+      const map={'日付':'date','担当者':'driver','現場名':'site','到着':'arrive','出発':'leave','住所':'addrText','地図リンク':'addr','メモ':'memo'};
+      let added=0;
+      rows.slice(1).forEach(cells=>{
+        if(cells.every(c=>!c.trim())) return;
+        const rec={id:uid(),photo:''};
+        header.forEach((h,i)=>{ const k=map[h]; if(k) rec[k]=(cells[i]||'').trim(); });
+        if(API_URL) rec._pending='add';
+        if(rec.site){ records.unshift(rec); added++; }
+      });
+      save(); render();
+      if(API_URL) syncNow(true);
+      alert(added+' 件を取り込みました。'+(API_URL?'\n共有先へ同期します。':''));
+    }catch(err){ alert('取込に失敗しました: '+err.message); }
+    e.target.value='';
+  };
+  reader.readAsText(file);
+});
+
+function parseCSV(text){
+  const rows=[]; let row=[],cell='',q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){
+      if(c==='"'){ if(text[i+1]==='"'){cell+='"';i++;} else q=false; }
+      else cell+=c;
+    }else{
+      if(c==='"') q=true;
+      else if(c===','){ row.push(cell); cell=''; }
+      else if(c==='\r'){}
+      else if(c==='\n'){ row.push(cell); rows.push(row); row=[]; cell=''; }
+      else cell+=c;
+    }
+  }
+  if(cell!==''||row.length){ row.push(cell); rows.push(row); }
+  return rows;
+}
+
+document.getElementById('printBtn').onclick=()=>window.print();
+
+render();
+
+// ===== 共有モードの初期化 =====
+setSyncUI(API_URL?'ok':'local');
+if(API_URL){
+  syncNow(true); // 起動時に最新を取得
+  if(AUTO_SYNC_SEC>0){
+    setInterval(()=>{ if(!document.hidden) syncNow(true); }, AUTO_SYNC_SEC*1000);
+  }
+  // 一覧タブを開いたときにも更新
+  document.getElementById('tab-list').addEventListener('click',()=>syncNow(true));
+}
+</script>
+</body>
+</html>
