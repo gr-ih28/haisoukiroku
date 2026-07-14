@@ -163,7 +163,6 @@
       <button class="btn btn-sm btn-ghost" id="importBtn">CSV取込</button>
       <input type="file" id="importFile" accept=".csv" class="hidden">
       <button class="btn btn-sm btn-ghost" id="printBtn">印刷/PDF</button>
-      <button class="btn btn-sm btn-danger" id="bulkDelete">🗑 表示中を一括削除</button>
     </div>
     <div class="count" id="count"></div>
     <div id="list"></div>
@@ -340,26 +339,6 @@ document.getElementById('cf_ok').onclick=()=>{
   }
 };
 document.getElementById('cf_cancel').onclick=()=>dlg.close();
-
-// 複数まとめて削除（共有中はマーク→同期、未共有は即削除）
-function deleteIds(ids){
-  const set=new Set(ids);
-  if(API_URL){
-    records=records.map(r=> set.has(r.id) ? {...r,_pending:'delete'} : r);
-    save(); render(); syncNow(true);
-  } else {
-    records=records.filter(r=>!set.has(r.id)); save(); render();
-  }
-}
-
-// 「表示中を一括削除」ボタン
-document.getElementById('bulkDelete').onclick=()=>{
-  const list=getFilteredList();
-  if(!list.length){ alert('削除できる記録がありません。'); return; }
-  const shareWarn = API_URL ? '\n※共有中のため、全員のデータからも削除されます。' : '';
-  if(!confirm(`いま表示されている ${list.length} 件をすべて削除します。\nこの操作は取り消せません。${shareWarn}\n\n削除しますか？`)) return;
-  deleteIds(list.map(r=>r.id));
-};
 
 /* ===== 共有（Google スプレッドシート）同期 ===== */
 const SYNC_FIELDS=['id','date','driver','site','arrive','leave','addrText','addr','memo'];
