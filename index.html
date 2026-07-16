@@ -71,6 +71,8 @@
   .rec .meta{font-size:14px;color:#374151;margin-top:8px;}
   .rec .meta a{color:var(--accent);text-decoration:none;font-weight:600;}
   .rec .memo{font-size:14px;color:#374151;margin-top:8px;white-space:pre-wrap;}
+  .rec .memo a.tel{display:inline-block;color:var(--accent-d);font-weight:700;text-decoration:none;
+    background:var(--chip);padding:1px 8px;border-radius:8px;}
   .rec img{max-width:100%;border-radius:8px;margin-top:8px;display:block;}
   .rec .actions{display:flex;gap:8px;margin-top:10px;justify-content:flex-end;}
   .empty{text-align:center;color:var(--sub);padding:30px 10px;font-size:14px;}
@@ -251,6 +253,15 @@ function loadDrivers(){
 function saveDrivers(){ localStorage.setItem(DKEY, JSON.stringify(drivers)); }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function esc(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// メモ内の電話番号を「タップで発信」リンクに変換（それ以外は通常表示）
+function linkifyMemo(s){
+  return esc(s).replace(/(\+?\d[\d\-\s()]{7,}\d)/g, m=>{
+    const dial=m.replace(/[^\d+]/g,'');           // 発信用（数字と+のみ）
+    const digits=dial.replace(/\D/g,'');          // 桁数チェック用
+    if(digits.length<10||digits.length>13) return m; // 電話番号らしくなければそのまま
+    return `<a href="tel:${dial}" class="tel">📞 ${m}</a>`;
+  });
+}
 
 // 初期日付＝今日
 document.getElementById('f_date').value = new Date().toISOString().slice(0,10);
@@ -505,7 +516,7 @@ function render(){
       <div class="recbody">
         ${time?`<div class="meta">🕐 ${esc(time)}</div>`:''}
         ${map}
-        ${r.memo?`<div class="memo">${esc(r.memo)}</div>`:''}
+        ${r.memo?`<div class="memo">${linkifyMemo(r.memo)}</div>`:''}
         ${photo}
         <div class="actions">
           <button class="btn btn-sm btn-ghost" onclick="editRec('${r.id}')">編集</button>
