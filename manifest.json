@@ -1,0 +1,12 @@
+{
+  "name": "配送記録",
+  "short_name": "配送記録",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#00B16B",
+  "theme_color": "#00B16B",
+  "icons": [
+    { "src": "haiso_icon_192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "haiso_icon_512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
