@@ -565,7 +565,7 @@ function render(){
     }
     if(parts.length){ map=`<div class="meta">${parts.join('　')}</div>`; }
     const photos=(r.photos&&r.photos.length)?r.photos:(r.photo?[r.photo]:[]); // 旧データ(単数写真)にも対応
-    const photo=photos.length?`<span class="thumbtoggle" onclick="this.nextElementSibling.classList.toggle('hidden')">写真を表示/隠す（${photos.length}枚）</span><div class="hidden photo-gallery">${photos.map(p=>`<a href="${esc(p)}" target="_blank" rel="noopener"><img src="${esc(p)}"></a>`).join('')}</div>`:'';
+    const photo=photos.length?`<div class="photo-gallery">${photos.map(p=>`<a href="${esc(p)}" target="_blank" rel="noopener"><img src="${esc(p)}"></a>`).join('')}</div>`:'';
     const hasBody = parts.length || r.memo || photos.length || time;
     return `<div class="rec">
       <div class="rechead" onclick="this.parentNode.classList.toggle('open')">
