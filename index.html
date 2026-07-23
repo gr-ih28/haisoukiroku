@@ -74,6 +74,13 @@
   .rec .memo a.tel{display:inline-block;color:var(--accent-d);font-weight:700;text-decoration:none;
     background:var(--chip);padding:1px 8px;border-radius:8px;}
   .rec img{max-width:100%;border-radius:8px;margin-top:8px;display:block;}
+  .photo-preview{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .photo-thumb{position:relative;width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid var(--line);}
+  .photo-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .photo-thumb-x{position:absolute;top:2px;right:2px;width:20px;height:20px;border:none;border-radius:50%;
+    background:rgba(0,0,0,.55);color:#fff;font-size:13px;line-height:1;cursor:pointer;padding:0;}
+  .photo-gallery{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .photo-gallery img{width:88px;height:88px;object-fit:cover;border-radius:8px;display:block;}
   .rec .actions{display:flex;gap:8px;margin-top:10px;justify-content:flex-end;}
   .empty{text-align:center;color:var(--sub);padding:30px 10px;font-size:14px;}
   .hidden{display:none;}
@@ -133,12 +140,13 @@
     <input type="url" id="f_addr" placeholder="GoogleマップのURLを貼り付け（例 https://maps.app.goo.gl/...）">
     <label>メモ</label>
     <textarea id="f_memo" placeholder="作業内容・引継ぎなど"></textarea>
-    <label>写真</label>
+    <label>写真（複数枚OK）</label>
     <div class="filedrop">
-      <input type="file" id="f_photo" accept="image/*" capture="environment" style="border:none;padding:6px 0;">
-      <button type="button" class="btn btn-sm btn-ghost" id="clearPhoto">写真を消す</button>
+      <input type="file" id="f_photo" accept="image/*" capture="environment" multiple style="border:none;padding:6px 0;">
+      <button type="button" class="btn btn-sm btn-ghost" id="clearPhoto">全て消す</button>
     </div>
-    <div class="hint">写真は自動で縮小して保存されます（端末内に保存）。</div>
+    <div id="photoPreview" class="photo-preview"></div>
+    <div class="hint">写真は自動で縮小して保存されます。共有設定をしている場合はGoogleドライブに保存され、他の端末からも見られます。</div>
     <div style="margin-top:16px" class="toolbar">
       <button class="btn btn-primary grow" id="saveBtn">保存する</button>
       <button class="btn btn-ghost hidden" id="cancelEdit">キャンセル</button>
@@ -179,7 +187,7 @@
   </div>
   </section>
 
-  <div class="footer-note">共有設定をすると全員で同じ記録を見られます（写真は各端末に保存）。未設定の場合はこの端末だけに保存されます。</div>
+  <div class="footer-note">共有設定をすると、記録も写真も全員で同じものが見られます。未設定の場合はこの端末だけに保存されます。</div>
 </div>
 
 <!-- 下部タブ -->
@@ -244,7 +252,13 @@ function switchView(v){
 document.getElementById('tab-add').onclick=()=>switchView('add');
 document.getElementById('tab-list').onclick=()=>switchView('list');
 
-function load(){ try{return JSON.parse(localStorage.getItem(KEY))||[];}catch(e){return [];} }
+function load(){
+  let list=[];
+  try{ list=JSON.parse(localStorage.getItem(KEY))||[]; }catch(e){ list=[]; }
+  // 旧バージョン（写真1枚のみ）のデータを新形式（photos配列）へ移行
+  list.forEach(r=>{ if(!r.photos){ r.photos = r.photo ? [r.photo] : []; } });
+  return list;
+}
 function save(){ localStorage.setItem(KEY, JSON.stringify(records)); }
 function loadDrivers(){
   let d=[]; try{ d=JSON.parse(localStorage.getItem(DKEY))||[]; }catch(e){ d=[]; }
@@ -266,25 +280,47 @@ function linkifyMemo(s){
 // 初期日付＝今日
 document.getElementById('f_date').value = new Date().toISOString().slice(0,10);
 
-// 写真縮小
-let photoData = '';
-document.getElementById('f_photo').addEventListener('change', e=>{
-  const file = e.target.files[0]; if(!file) return;
-  const reader = new FileReader();
-  reader.onload = ev=>{
-    const img = new Image();
-    img.onload = ()=>{
-      const max=1000; let {width:w,height:h}=img;
-      if(w>max||h>max){ const r=Math.min(max/w,max/h); w=Math.round(w*r); h=Math.round(h*r);}
-      const c=document.createElement('canvas'); c.width=w; c.height=h;
-      c.getContext('2d').drawImage(img,0,0,w,h);
-      photoData=c.toDataURL('image/jpeg',0.7);
+// 写真（複数枚）縮小・管理
+let photosData = []; // 追加フォームで編集中の写真一覧（data URL、または同期済みならURL）
+
+function resizeImageFile(file){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const max=1000; let {width:w,height:h}=img;
+        if(w>max||h>max){ const r=Math.min(max/w,max/h); w=Math.round(w*r); h=Math.round(h*r);}
+        const c=document.createElement('canvas'); c.width=w; c.height=h;
+        c.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(c.toDataURL('image/jpeg',0.7));
+      };
+      img.onerror=reject;
+      img.src=ev.target.result;
     };
-    img.src=ev.target.result;
-  };
-  reader.readAsDataURL(file);
+    reader.onerror=reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+document.getElementById('f_photo').addEventListener('change', async e=>{
+  const files=Array.from(e.target.files||[]);
+  for(const file of files){
+    try{ photosData.push(await resizeImageFile(file)); }catch(err){ console.error(err); }
+  }
+  e.target.value='';
+  renderPhotoPreview();
 });
-document.getElementById('clearPhoto').onclick=()=>{ photoData=''; document.getElementById('f_photo').value=''; };
+document.getElementById('clearPhoto').onclick=()=>{ photosData=[]; renderPhotoPreview(); };
+
+function renderPhotoPreview(){
+  const box=document.getElementById('photoPreview');
+  if(!photosData.length){ box.innerHTML=''; return; }
+  box.innerHTML=photosData.map((src,i)=>
+    `<div class="photo-thumb"><img src="${src}"><button type="button" class="photo-thumb-x" onclick="removePhotoAt(${i})">×</button></div>`
+  ).join('');
+}
+function removePhotoAt(i){ photosData.splice(i,1); renderPhotoPreview(); }
 
 // 保存
 document.getElementById('saveBtn').onclick=()=>{
@@ -300,7 +336,7 @@ document.getElementById('saveBtn').onclick=()=>{
     addrText: document.getElementById('f_addrtext').value.trim(),
     addr: document.getElementById('f_addr').value.trim(),
     memo: document.getElementById('f_memo').value.trim(),
-    photo: photoData
+    photos: photosData.slice()
   };
   // 同じ日に同じ現場（または住所）がすでにある場合は警告（新規追加のときだけ）
   if(!editId){
@@ -320,7 +356,7 @@ document.getElementById('saveBtn').onclick=()=>{
 document.getElementById('cancelEdit').onclick=resetForm;
 
 function resetForm(){
-  editId=null; photoData='';
+  editId=null; photosData=[]; renderPhotoPreview();
   document.getElementById('formTitle').textContent='記録を追加';
   document.getElementById('saveBtn').textContent='保存する';
   document.getElementById('cancelEdit').classList.add('hidden');
@@ -331,7 +367,7 @@ function resetForm(){
 
 function editRec(id){
   const r=records.find(x=>x.id===id); if(!r) return;
-  editId=id; photoData=r.photo||'';
+  editId=id; photosData=(r.photos||[]).slice(); renderPhotoPreview();
   document.getElementById('f_date').value=r.date||'';
   document.getElementById('f_driver').value=r.driver||'';
   document.getElementById('f_site').value=r.site||'';
@@ -369,7 +405,16 @@ document.getElementById('cf_cancel').onclick=()=>dlg.close();
 
 /* ===== 共有（Google スプレッドシート）同期 ===== */
 const SYNC_FIELDS=['id','date','driver','site','arrive','leave','addrText','addr','memo'];
-function stripForServer(r){ const o={}; SYNC_FIELDS.forEach(k=>o[k]=r[k]||''); return o; }
+function stripForServer(r){
+  const o={};
+  SYNC_FIELDS.forEach(k=>o[k]=r[k]||'');
+  o.photos=JSON.stringify(r.photos||[]); // 写真はURLの配列をJSON文字列にして送る
+  return o;
+}
+function parsePhotos(v){
+  if(!v) return [];
+  try{ const a=JSON.parse(v); return Array.isArray(a)?a:[]; }catch(e){ return []; }
+}
 let syncing=false;
 
 function setSyncUI(state,msg){
@@ -400,17 +445,28 @@ async function syncNow(silent){
   if(syncing) return;
   syncing=true; setSyncUI('syncing');
   try{
-    // 1) 未送信の変更を反映
     const pend=records.filter(r=>r._pending);
+    // 1) 未アップロードの写真（端末内のdata:形式）をドライブへアップロードしてURL化
+    for(const r of pend){
+      if(r._pending==='delete') continue;
+      if(r.photos && r.photos.length){
+        for(let i=0;i<r.photos.length;i++){
+          if(String(r.photos[i]).startsWith('data:')){
+            const res=await apiPost({action:'uploadPhoto', recordId:r.id, image:r.photos[i]});
+            r.photos[i]=res.url;
+          }
+        }
+        save();
+      }
+    }
+    // 2) 未送信の変更（記録本体）を反映
     for(const r of pend){
       if(r._pending==='delete') await apiPost({action:'delete',id:r.id});
       else await apiPost({action:'save',record:stripForServer(r)});
     }
-    // 2) サーバーから全件取得（サーバーが正）
+    // 3) サーバーから全件取得（サーバーが正。写真はURLとして返ってくる）
     const server=await apiGet();
-    // 3) 端末内の写真を維持（写真はサーバーに保存しない）
-    const photoMap={}; records.forEach(r=>{ if(r.photo) photoMap[r.id]=r.photo; });
-    records=server.map(r=>({...r,photo:photoMap[r.id]||''}));
+    records=server.map(r=>({...r, photos: parsePhotos(r.photos)}));
     save(); render();
     setSyncUI('ok');
   }catch(e){
@@ -508,8 +564,9 @@ function render(){
       parts.push(`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(r.addrText)}" target="_blank" rel="noopener">🗺️ 地図を開く</a>`);
     }
     if(parts.length){ map=`<div class="meta">${parts.join('　')}</div>`; }
-    const photo=r.photo?`<span class="thumbtoggle" onclick="this.nextElementSibling.classList.toggle('hidden')">写真を表示/隠す</span><img class="hidden" src="${r.photo}">`:'';
-    const hasBody = parts.length || r.memo || r.photo || time;
+    const photos=(r.photos&&r.photos.length)?r.photos:(r.photo?[r.photo]:[]); // 旧データ(単数写真)にも対応
+    const photo=photos.length?`<span class="thumbtoggle" onclick="this.nextElementSibling.classList.toggle('hidden')">写真を表示/隠す（${photos.length}枚）</span><div class="hidden photo-gallery">${photos.map(p=>`<a href="${esc(p)}" target="_blank" rel="noopener"><img src="${esc(p)}"></a>`).join('')}</div>`:'';
+    const hasBody = parts.length || r.memo || photos.length || time;
     return `<div class="rec">
       <div class="rechead" onclick="this.parentNode.classList.toggle('open')">
         <div class="headmain">
